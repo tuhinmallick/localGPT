@@ -57,17 +57,17 @@ def load_model(device_type, model_id, model_basename=None, LOGGING=logging):
     logging.info(f"Loading Model: {model_id}, on: {device_type}")
     logging.info("This action can take a few minutes!")
 
-    if model_basename is not None:
-        if ".gguf" in model_basename.lower():
-            llm = load_quantized_model_gguf_ggml(model_id, model_basename, device_type, LOGGING)
-            return llm
-        elif ".ggml" in model_basename.lower():
-            model, tokenizer = load_quantized_model_gguf_ggml(model_id, model_basename, device_type, LOGGING)
-        else:
-            model, tokenizer = load_quantized_model_qptq(model_id, model_basename, device_type, LOGGING)
-    else:
+    if model_basename is None:
         model, tokenizer = load_full_model(model_id, model_basename, device_type, LOGGING)
 
+    elif ".gguf" in model_basename.lower():
+        return load_quantized_model_gguf_ggml(
+            model_id, model_basename, device_type, LOGGING
+        )
+    elif ".ggml" in model_basename.lower():
+        model, tokenizer = load_quantized_model_gguf_ggml(model_id, model_basename, device_type, LOGGING)
+    else:
+        model, tokenizer = load_quantized_model_qptq(model_id, model_basename, device_type, LOGGING)
     # Load configuration from the model to avoid warnings
     generation_config = GenerationConfig.from_pretrained(model_id)
     # see here for details:
@@ -133,8 +133,8 @@ def retrieval_qa_pipline(device_type, use_history, promptTemplate_type="llama"):
     # load the llm pipeline
     llm = load_model(device_type, model_id=MODEL_ID, model_basename=MODEL_BASENAME, LOGGING=logging)
 
-    if use_history:
-        qa = RetrievalQA.from_chain_type(
+    return (
+        RetrievalQA.from_chain_type(
             llm=llm,
             chain_type="stuff",  # try other chains types as well. refine, map_reduce, map_rerank
             retriever=retriever,
@@ -142,8 +142,8 @@ def retrieval_qa_pipline(device_type, use_history, promptTemplate_type="llama"):
             callbacks=callback_manager,
             chain_type_kwargs={"prompt": prompt, "memory": memory},
         )
-    else:
-        qa = RetrievalQA.from_chain_type(
+        if use_history
+        else RetrievalQA.from_chain_type(
             llm=llm,
             chain_type="stuff",  # try other chains types as well. refine, map_reduce, map_rerank
             retriever=retriever,
@@ -153,8 +153,7 @@ def retrieval_qa_pipline(device_type, use_history, promptTemplate_type="llama"):
                 "prompt": prompt,
             },
         )
-
-    return qa
+    )
 
 
 # chose device typ to run on as well as to show source documents.
